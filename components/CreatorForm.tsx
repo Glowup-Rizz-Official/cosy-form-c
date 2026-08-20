@@ -300,6 +300,10 @@ export function CreatorForm() {
       chRatio,
       contractStart: planPeriod?.start ?? null,
       contractEnd: planPeriod?.end ?? null,
+      // ── PDF 변환용: 화면 계약서의 날짜/본문을 그대로 전달 ──
+      formSource: "cosy-form-c",
+      contractDate: todayStr,
+      contractRows,
       notes: notes.trim(),
       signed: true,
       docsUploaded: hasAnyDoc,
@@ -326,6 +330,54 @@ export function CreatorForm() {
   const todayStr = useMemo(() => {
     return `2026년 10월 01일`;
   }, []);
+
+  // ── 화면 계약서 = PDF 계약서 ──
+  // 여기가 계약 내용의 단일 원본이다. 아래 값은 화면에 렌더되는 문구와
+  // 글자 하나까지 동일해야 하며, 그대로 Apps Script로 전달되어 PDF가 된다.
+  const contractRows = useMemo(() => {
+    if (!selectedPlan) return [];
+    const a = adRatio.split(":");
+    const c = chRatio.split(":");
+    const exclusive = planIsExclusive(selectedPlan);
+    const rows: { section: string; label: string; value: string }[] = [];
+    const add = (section: string, label: string, value: string) =>
+      rows.push({ section, label, value });
+
+    add("계약 당사자", "아티스트", `${name} (${channel})`);
+    add("계약 당사자", "이메일", email.trim());
+    add("계약 당사자", "매니지먼트사", "글로우업리즈 주식회사 (RIZZ)");
+    if (planPeriod) add("계약 당사자", "계약 기간", planPeriod.label);
+
+    add("계약 범위", "계약 유형", PLAN_LABEL[selectedPlan]);
+    add(
+      "계약 범위",
+      "수익활동",
+      exclusive
+        ? "RIZZ 전담 (독점)"
+        : "광고 자유 · 커머스 RIZZ 독점 (단, RIZZ 계약 전 진행하던 건들은 아티스트 전체 귀속)"
+    );
+    add("계약 범위", "전담 매니저", planHasDedicatedManager(selectedPlan) ? "포함" : "미포함");
+    add("계약 범위", "채널 소유권", "아티스트 귀속");
+
+    if (exclusive) {
+      add("수익 배분", "애드센스", "아티스트 독점");
+      add("수익 배분", "광고 수익", `아티스트 ${a[0]} : RIZZ ${a[1]}`);
+      add("수익 배분", "커머스 수익", "COSY 내 수수료율 적용 (티어별 보너스 有)");
+      add("수익 배분", "비고", "광고 및 커머스 영업은 RIZZ가 독점으로 진행하며, 아티스트는 RIZZ를 통하지 않은 별도의 광고/커머스 활동을 할 수 없습니다.");
+    } else {
+      // ⚠ 화면 문구와 반드시 동일하게 유지할 것 (RIZZ 6 : 아티스트 4)
+      add("수익 배분", "애드센스", "아티스트 독점");
+      add("수익 배분", "광고 수익", "아티스트 자유 활동 가능 / RIZZ 제안 건에 대해서만 RIZZ 6 : 아티스트 4로 나눔");
+      add("수익 배분", "커머스 수익", "RIZZ 독점 영업 / 건별 협의한 비율로 나눔 (단, RIZZ 계약 전 진행하던 건은 아티스트 전체 귀속)");
+    }
+
+    add("기본 제공 서비스", "전담 매니저 배정", planHasDedicatedManager(selectedPlan) ? "포함" : "해당 유형에서는 미포함");
+    add("기본 제공 서비스", "COSY 수익화", "포함");
+    add("기본 제공 서비스", "RIZZ 1, 2사옥 라운지/촬영 공간", "포함");
+    add("기본 제공 서비스", "아티스트 네트워킹 행사", "포함");
+
+    return rows;
+  }, [selectedPlan, name, channel, email, planPeriod, adRatio, chRatio]);
 
   const signBlockedReason = !emailVerified || !agreeESign || !hasSigned || !agreeExtras;
 
